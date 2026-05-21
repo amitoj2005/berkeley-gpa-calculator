@@ -148,12 +148,15 @@ export default function Home() {
     <main className="min-h-screen bg-zinc-950 text-zinc-100">
       <div className="mx-auto max-w-4xl px-4 py-10 space-y-8">
         {/* Header */}
-        <div className="text-center space-y-2">
-          <div className="inline-flex items-center gap-2 rounded-full bg-blue-900/40 px-3 py-1 text-xs text-blue-300 border border-blue-800">
+        <div className="text-center space-y-1">
+          <p
+            className="text-3xl font-medium tracking-wide"
+            style={{ fontFamily: 'var(--font-eb-garamond)', color: '#FDB515' }}
+          >
             UC Berkeley
-          </div>
+          </p>
           <h1 className="text-3xl font-bold tracking-tight">GPA Calculator</h1>
-          <p className="text-zinc-400 text-sm">
+          <p className="text-zinc-400 text-sm pt-1">
             Upload your CalCentral transcript — everything runs in your browser, nothing is stored on a server.
           </p>
         </div>
