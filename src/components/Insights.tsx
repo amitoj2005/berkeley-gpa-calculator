@@ -98,15 +98,16 @@ function GradeDistribution({ courses }: { courses: Course[] }) {
           { label: 'C grades', color: '#fbbf24', prefix: 'C' },
           { label: 'D / F',   color: '#f87171', prefix: 'DF' },
         ].map(({ label, color, prefix }) => {
-          const units = courses
-            .filter((c) => prefix === 'DF'
-              ? c.grade.startsWith('D') || c.grade === 'F'
-              : c.grade.startsWith(prefix))
-            .reduce((s, c) => s + c.units, 0);
+          const filtered = courses.filter((c) => prefix === 'DF'
+            ? c.grade.startsWith('D') || c.grade === 'F'
+            : c.grade.startsWith(prefix));
+          const units = filtered.reduce((s, c) => s + c.units, 0);
+          const count = filtered.length;
           return (
             <div key={label} className="rounded-lg bg-zinc-800 px-3 py-2 text-center">
               <p className="text-base font-bold" style={{ color }}>{units}</p>
-              <p className="text-[10px] text-zinc-500 mt-0.5">{label}</p>
+              <p className="text-[10px] text-zinc-400 mt-0.5">{count} class{count !== 1 ? 'es' : ''}</p>
+              <p className="text-[10px] text-zinc-500">{label}</p>
             </div>
           );
         })}
