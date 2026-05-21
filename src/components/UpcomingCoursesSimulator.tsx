@@ -44,7 +44,7 @@ export default function UpcomingCoursesSimulator({ courses, gpaData }: Props) {
   const fromTranscript = useMemo(() =>
     courses.filter((c) => {
       const g = (c.grade as string).toUpperCase();
-      return g === 'IP' || g === 'RD';
+      return g === 'IP' || g === 'RD' || g === 'GRD';
     }),
   [courses]);
 

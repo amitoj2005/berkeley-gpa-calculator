@@ -239,9 +239,11 @@ export function parseMyAcademicsPage(text: string): Course[] {
         const m = UNITS_GRADE_RE.exec(l);
         if (m) {
           const units = parseFloat(m[1]);
-          const grade = m[2].toUpperCase();
+          const rawGrade = m[2].toUpperCase();
+          // GRD = enrolled but no grade yet → store as IP (In Progress)
+          const grade = rawGrade === 'GRD' ? 'IP' : rawGrade;
           i++;
-          if (!isNaN(units) && units > 0 && VALID_GRADES.has(grade)) {
+          if (!isNaN(units) && units > 0 && (VALID_GRADES.has(rawGrade) || rawGrade === 'GRD')) {
             courses.push(buildCourse(nextId(), currentTerm, code, title, units, grade));
           }
         }
