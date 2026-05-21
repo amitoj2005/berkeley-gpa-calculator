@@ -24,6 +24,14 @@ interface Entry {
 
 const LETTER_GRADES = ['A+', 'A', 'A-', 'B+', 'B', 'B-', 'C+', 'C', 'C-', 'D+', 'D', 'D-', 'F'];
 
+const SEASON_ORDER: Record<string, number> = { Spring: 0, Summer: 1, Fall: 2, Winter: 3 };
+
+function parseTerm(t: string): [number, number] {
+  const m = t.match(/(Spring|Summer|Fall|Winter)\s+(\d{4})/i);
+  if (m) return [parseInt(m[2]), SEASON_ORDER[m[1]] ?? 99];
+  return [9999, 99];
+}
+
 let uid = 0;
 function mkId() { return `uc-${++uid}`; }
 
@@ -41,8 +49,6 @@ function approxLetter(gpa: number): string {
 }
 
 export default function UpcomingCoursesSimulator({ courses, gpaData }: Props) {
-  // Only show IP courses from terms where every course is ungraded (= future semesters).
-  // Current-semester courses (mixed graded + ungraded) go to CurrentTermSimulator instead.
   const fromTranscript = useMemo(() => {
     const isEnrolled = (c: Course) => {
       const g = (c.grade as string).toUpperCase();
@@ -57,8 +63,7 @@ export default function UpcomingCoursesSimulator({ courses, gpaData }: Props) {
     for (const termCourses of byTerm.values()) {
       const ip = termCourses.filter(isEnrolled);
       if (ip.length === 0) continue;
-      const allEnrolled = termCourses.every(isEnrolled);
-      if (allEnrolled) result.push(...ip);
+      if (termCourses.every(isEnrolled)) result.push(...ip);
     }
     return result;
   }, [courses]);
@@ -93,12 +98,158 @@ export default function UpcomingCoursesSimulator({ courses, gpaData }: Props) {
     return { gpa: totalUnits > 0 ? totalQP / totalUnits : gpaData.cumulativeGPA, units: totalUnits };
   }, [entries, gpaData]);
 
+  // Group entries by term, sorted chronologically
+  const grouped = useMemo(() => {
+    const termMap = new Map<string, Entry[]>();
+    for (const e of entries) {
+      const t = e.term || 'Other';
+      if (!termMap.has(t)) termMap.set(t, []);
+      termMap.get(t)!.push(e);
+    }
+    return [...termMap.keys()]
+      .sort((a, b) => {
+        const [ya, sa] = parseTerm(a);
+        const [yb, sb] = parseTerm(b);
+        return ya !== yb ? ya - yb : sa - sb;
+      })
+      .map((term) => ({ term, entries: termMap.get(term)! }));
+  }, [entries]);
+
   const update = (id: string, patch: Partial<Entry>) =>
     setEntries((prev) => prev.map((e) => (e.id === id ? { ...e, ...patch } : e)));
   const remove = (id: string) =>
     setEntries((prev) => prev.filter((e) => e.id !== id));
 
   const delta = projected.gpa - gpaData.cumulativeGPA;
+
+  const renderCourse = (e: Entry) => {
+    const gp = GRADE_POINTS[e.expectedGrade] ?? NaN;
+    const courseDelta =
+      !isNaN(gp) && e.units > 0 && e.decision === 'letter' && gpaData.totalUnits > 0
+        ? (gpaData.totalQualityPoints + gp * e.units) / (gpaData.totalUnits + e.units) - breakEven
+        : null;
+    const rec: 'letter' | 'pnp' | 'borderline' | null =
+      e.decision === 'letter' && !isNaN(gp)
+        ? gp > breakEven + 0.15 ? 'letter'
+        : gp < breakEven - 0.15 ? 'pnp'
+        : 'borderline'
+        : null;
+
+    return (
+      <div key={e.id} className="p-3 space-y-2.5">
+        {/* Course header */}
+        <div className="flex items-start gap-2">
+          <div className="flex-1 min-w-0">
+            {e.fromTranscript ? (
+              <>
+                <p className="text-sm font-mono font-semibold text-zinc-200">{e.code}</p>
+                {e.title && e.title !== e.code && (
+                  <p className="text-xs text-zinc-500 truncate">{e.title}</p>
+                )}
+              </>
+            ) : (
+              <input
+                placeholder="e.g. COMPSCI 188"
+                value={e.code}
+                onChange={(ev) => update(e.id, { code: ev.target.value.toUpperCase() })}
+                className="w-full rounded bg-zinc-800 border border-zinc-700 px-2 py-1 text-xs font-mono text-zinc-200 placeholder-zinc-600 focus:outline-none focus:border-zinc-500"
+              />
+            )}
+          </div>
+
+          {e.fromTranscript ? (
+            <span className="text-xs text-zinc-500 shrink-0 mt-1">{e.units} units</span>
+          ) : (
+            <div className="flex items-center gap-1 shrink-0">
+              <input
+                type="number" min={0.5} max={12} step={0.5}
+                value={e.units}
+                onChange={(ev) => {
+                  const v = parseFloat(ev.target.value);
+                  if (!isNaN(v) && v > 0 && v <= 12) update(e.id, { units: v });
+                }}
+                className="w-14 rounded bg-zinc-800 border border-zinc-700 px-2 py-1 text-xs text-zinc-200 text-center focus:outline-none focus:border-zinc-500"
+              />
+              <span className="text-xs text-zinc-600">un.</span>
+            </div>
+          )}
+
+          <button
+            onClick={() => remove(e.id)}
+            className="text-zinc-600 hover:text-zinc-300 text-xs shrink-0 mt-1"
+          >
+            ✕
+          </button>
+        </div>
+
+        {/* Decision buttons */}
+        <div className="flex gap-1">
+          {(['letter', 'pnp', 'drop'] as const).map((d) => (
+            <button
+              key={d}
+              onClick={() => update(e.id, { decision: d })}
+              className={`flex-1 rounded py-1 text-xs font-medium transition-colors border ${
+                e.decision === d
+                  ? d === 'drop' ? 'bg-red-900/50 text-red-300 border-red-800'
+                  : d === 'pnp'  ? 'bg-zinc-600 text-zinc-100 border-zinc-500'
+                                 : 'bg-blue-900/50 text-blue-300 border-blue-800'
+                  : 'bg-zinc-800 text-zinc-500 hover:text-zinc-300 border-transparent'
+              }`}
+            >
+              {d === 'letter' ? 'Letter Grade' : d === 'pnp' ? 'P/NP' : 'Drop'}
+            </button>
+          ))}
+        </div>
+
+        {/* Decision details */}
+        {e.decision === 'letter' && (
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-xs text-zinc-500">Expected:</span>
+            <select
+              value={e.expectedGrade}
+              onChange={(ev) => update(e.id, { expectedGrade: ev.target.value })}
+              className="rounded bg-zinc-800 border border-zinc-700 px-2 py-0.5 text-xs text-zinc-200 focus:outline-none focus:border-zinc-500"
+            >
+              {LETTER_GRADES.map((g) => <option key={g} value={g}>{g}</option>)}
+            </select>
+            {courseDelta !== null && (
+              <span className={`text-xs font-mono font-semibold ${
+                courseDelta > 0.0005 ? 'text-green-400' : courseDelta < -0.0005 ? 'text-red-400' : 'text-zinc-400'
+              }`}>
+                {courseDelta > 0 ? '+' : ''}{courseDelta.toFixed(3)}
+              </span>
+            )}
+            {rec === 'letter' && (
+              <span className="text-[10px] bg-green-900/40 text-green-400 px-1.5 py-0.5 rounded">
+                above break-even — keep letter
+              </span>
+            )}
+            {rec === 'pnp' && (
+              <span className="text-[10px] bg-yellow-900/40 text-yellow-400 px-1.5 py-0.5 rounded">
+                below break-even — consider P/NP
+              </span>
+            )}
+            {rec === 'borderline' && (
+              <span className="text-[10px] bg-zinc-800 text-zinc-500 px-1.5 py-0.5 rounded">
+                near break-even
+              </span>
+            )}
+          </div>
+        )}
+        {e.decision === 'pnp' && (
+          <p className="text-xs text-zinc-500">
+            No GPA impact — these {e.units} units won&apos;t count toward your GPA.
+            You need a passing grade to earn the units.
+          </p>
+        )}
+        {e.decision === 'drop' && (
+          <p className="text-xs text-red-400/70">
+            Dropped — no GPA or unit impact. Make sure you&apos;re within the drop deadline.
+          </p>
+        )}
+      </div>
+    );
+  };
 
   return (
     <div className="rounded-xl bg-zinc-800/60 p-4 space-y-4">
@@ -119,7 +270,7 @@ export default function UpcomingCoursesSimulator({ courses, gpaData }: Props) {
         </button>
       </div>
 
-      {/* Projected GPA summary — always visible at top */}
+      {/* Projected GPA summary */}
       <div className="rounded-lg bg-zinc-900 px-4 py-3 grid grid-cols-3 gap-4">
         <div>
           <p className="text-xs text-zinc-400">Current GPA</p>
@@ -140,148 +291,25 @@ export default function UpcomingCoursesSimulator({ courses, gpaData }: Props) {
 
       {entries.length === 0 ? (
         <p className="text-xs text-zinc-600 text-center py-4">
-          No enrolled courses detected. Add courses manually or upload a transcript that includes IP-enrolled courses.
+          No enrolled courses detected. Add courses manually or upload a transcript that includes enrolled courses.
         </p>
       ) : (
-        <div className="space-y-3 max-h-[480px] overflow-y-auto pr-1">
-          {entries.map((e) => {
-            const gp = GRADE_POINTS[e.expectedGrade] ?? NaN;
-            const courseDelta =
-              !isNaN(gp) && e.units > 0 && e.decision === 'letter' && gpaData.totalUnits > 0
-                ? (gpaData.totalQualityPoints + gp * e.units) / (gpaData.totalUnits + e.units) - breakEven
-                : null;
-            const rec: 'letter' | 'pnp' | 'borderline' | null =
-              e.decision === 'letter' && !isNaN(gp)
-                ? gp > breakEven + 0.15 ? 'letter'
-                : gp < breakEven - 0.15 ? 'pnp'
-                : 'borderline'
-                : null;
-
-            return (
-              <div key={e.id} className="rounded-lg border border-zinc-700 bg-zinc-900 p-3 space-y-2.5">
-                {/* Course header */}
-                <div className="flex items-start gap-2">
-                  <div className="flex-1 min-w-0">
-                    {e.fromTranscript ? (
-                      <>
-                        <p className="text-sm font-mono font-semibold text-zinc-200">{e.code}</p>
-                        {e.title && e.title !== e.code && (
-                          <p className="text-xs text-zinc-500 truncate">{e.title}</p>
-                        )}
-                      </>
-                    ) : (
-                      <input
-                        placeholder="e.g. COMPSCI 188"
-                        value={e.code}
-                        onChange={(ev) => update(e.id, { code: ev.target.value.toUpperCase() })}
-                        className="w-full rounded bg-zinc-800 border border-zinc-700 px-2 py-1 text-xs font-mono text-zinc-200 placeholder-zinc-600 focus:outline-none focus:border-zinc-500"
-                      />
-                    )}
-                  </div>
-
-                  {/* Units */}
-                  {e.fromTranscript ? (
-                    <span className="text-xs text-zinc-500 shrink-0 mt-1">{e.units} units</span>
-                  ) : (
-                    <div className="flex items-center gap-1 shrink-0">
-                      <input
-                        type="number" min={0.5} max={12} step={0.5}
-                        value={e.units}
-                        onChange={(ev) => {
-                          const v = parseFloat(ev.target.value);
-                          if (!isNaN(v) && v > 0 && v <= 12) update(e.id, { units: v });
-                        }}
-                        className="w-14 rounded bg-zinc-800 border border-zinc-700 px-2 py-1 text-xs text-zinc-200 text-center focus:outline-none focus:border-zinc-500"
-                      />
-                      <span className="text-xs text-zinc-600">un.</span>
-                    </div>
-                  )}
-
-                  {e.fromTranscript && e.term && (
-                    <span className="text-[10px] text-zinc-600 shrink-0 mt-1">{e.term}</span>
-                  )}
-                  <button
-                    onClick={() => remove(e.id)}
-                    className="text-zinc-600 hover:text-zinc-300 text-xs shrink-0 mt-1"
-                  >
-                    ✕
-                  </button>
-                </div>
-
-                {/* Decision buttons */}
-                <div className="flex gap-1">
-                  {(['letter', 'pnp', 'drop'] as const).map((d) => (
-                    <button
-                      key={d}
-                      onClick={() => update(e.id, { decision: d })}
-                      className={`flex-1 rounded py-1 text-xs font-medium transition-colors border ${
-                        e.decision === d
-                          ? d === 'drop' ? 'bg-red-900/50 text-red-300 border-red-800'
-                          : d === 'pnp'  ? 'bg-zinc-600 text-zinc-100 border-zinc-500'
-                                         : 'bg-blue-900/50 text-blue-300 border-blue-800'
-                          : 'bg-zinc-800 text-zinc-500 hover:text-zinc-300 border-transparent'
-                      }`}
-                    >
-                      {d === 'letter' ? 'Letter Grade' : d === 'pnp' ? 'P/NP' : 'Drop'}
-                    </button>
-                  ))}
-                </div>
-
-                {/* Decision details */}
-                {e.decision === 'letter' && (
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="text-xs text-zinc-500">Expected:</span>
-                    <select
-                      value={e.expectedGrade}
-                      onChange={(ev) => update(e.id, { expectedGrade: ev.target.value })}
-                      className="rounded bg-zinc-800 border border-zinc-700 px-2 py-0.5 text-xs text-zinc-200 focus:outline-none focus:border-zinc-500"
-                    >
-                      {LETTER_GRADES.map((g) => <option key={g} value={g}>{g}</option>)}
-                    </select>
-                    {courseDelta !== null && (
-                      <span className={`text-xs font-mono font-semibold ${
-                        courseDelta > 0.0005 ? 'text-green-400' : courseDelta < -0.0005 ? 'text-red-400' : 'text-zinc-400'
-                      }`}>
-                        {courseDelta > 0 ? '+' : ''}{courseDelta.toFixed(3)}
-                      </span>
-                    )}
-                    {rec === 'letter' && (
-                      <span className="text-[10px] bg-green-900/40 text-green-400 px-1.5 py-0.5 rounded">
-                        above break-even — keep letter
-                      </span>
-                    )}
-                    {rec === 'pnp' && (
-                      <span className="text-[10px] bg-yellow-900/40 text-yellow-400 px-1.5 py-0.5 rounded">
-                        below break-even — consider P/NP
-                      </span>
-                    )}
-                    {rec === 'borderline' && (
-                      <span className="text-[10px] bg-zinc-800 text-zinc-500 px-1.5 py-0.5 rounded">
-                        near break-even
-                      </span>
-                    )}
-                  </div>
-                )}
-                {e.decision === 'pnp' && (
-                  <p className="text-xs text-zinc-500">
-                    No GPA impact — these {e.units} units won&apos;t count toward your GPA.
-                    You need a passing grade to earn the units.
-                  </p>
-                )}
-                {e.decision === 'drop' && (
-                  <p className="text-xs text-red-400/70">
-                    Dropped — no GPA or unit impact. Make sure you&apos;re within the drop deadline.
-                  </p>
-                )}
+        <div className="space-y-5">
+          {grouped.map(({ term, entries: termEntries }) => (
+            <div key={term}>
+              {/* Semester label */}
+              <p className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-2">{term}</p>
+              {/* Courses boxed together */}
+              <div className="rounded-lg border border-zinc-700 bg-zinc-900 divide-y divide-zinc-700/60">
+                {termEntries.map(renderCourse)}
               </div>
-            );
-          })}
+            </div>
+          ))}
         </div>
       )}
 
       <p className="text-[10px] text-zinc-600">
-        Your break-even grade is {breakEven.toFixed(2)} (≈ {approxLetter(breakEven)}).
-        Grades above this raise your GPA; grades below lower it.
+        Break-even: {breakEven.toFixed(2)} (≈ {approxLetter(breakEven)}) — grades above this raise your GPA; below, they lower it.
         Major requirements often can&apos;t be switched to P/NP — check with your advisor.
       </p>
     </div>
