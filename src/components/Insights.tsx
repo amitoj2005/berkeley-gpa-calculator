@@ -223,6 +223,7 @@ function PNPHelper({ courses, gpaData }: { courses: Course[]; gpaData: GPAData }
 
       <div>
         <p className="text-xs text-zinc-500 mb-2">Past courses — what P/NP would have done to your GPA:</p>
+        <p className="text-[10px] text-zinc-600 mb-2 italic">Note: many major requirements can&apos;t have their grading option changed — this is for reference only.</p>
         <div className="space-y-1 max-h-56 overflow-y-auto pr-1">
           {pnpImpacts.map(({ course, newGPA, delta }) => (
             <div key={course.id} className="flex items-center gap-2 text-xs">
