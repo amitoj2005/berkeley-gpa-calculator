@@ -290,8 +290,10 @@ export default function TranscriptUpload({ onCoursesFound }: Props) {
         <div>
           <p className="font-semibold text-zinc-300 mb-1">For the PDF (more accurate):</p>
           <ol className="list-decimal list-inside space-y-0.5">
-            <li>My Academics → Unofficial Transcript → View</li>
-            <li>Print → Save as PDF → upload above</li>
+            <li>Go to <span className="text-zinc-200">calcentral.berkeley.edu</span> → My Academics</li>
+            <li>Click <span className="text-zinc-200">View Academic Summary</span></li>
+            <li>Click <span className="text-zinc-200">Print</span> (top right) → Save as PDF</li>
+            <li>Upload the PDF above</li>
           </ol>
         </div>
         <p className="text-zinc-500">Nothing leaves your browser — no server, no uploads.</p>
