@@ -53,7 +53,7 @@ const GPA_THRESHOLDS = [
 ];
 
 export default function GPATimeline({ courses }: Props) {
-  const data = useMemo(() => buildGPATimeline(courses), [courses]);
+  const data = useMemo(() => buildGPATimeline(courses).filter((d) => d.termUnits > 0), [courses]);
 
   if (data.length < 2) {
     return (
