@@ -282,6 +282,7 @@ export default function TranscriptUpload({ onCoursesFound }: Props) {
           <p className="font-semibold text-zinc-300 mb-1">Option 2 — Paste from My Academics page <span className="text-green-400 font-normal">(easiest)</span>:</p>
           <ol className="list-decimal list-inside space-y-0.5">
             <li>Go to <span className="text-zinc-200">calcentral.berkeley.edu</span> → My Academics</li>
+            <li>Scroll down and click <span className="text-zinc-200 font-medium">Show More</span> at the bottom of the Semesters section to expand all past terms</li>
             <li>Press <kbd className="rounded bg-zinc-800 px-1 py-0.5 font-mono">Ctrl+A</kbd> to select all, then <kbd className="rounded bg-zinc-800 px-1 py-0.5 font-mono">Ctrl+C</kbd> to copy</li>
             <li>Come back here and press <kbd className="rounded bg-zinc-800 px-1 py-0.5 font-mono">Ctrl+V</kbd></li>
           </ol>
