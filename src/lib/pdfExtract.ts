@@ -43,9 +43,8 @@ export async function extractTextFromPDF(file: File): Promise<string> {
 export async function extractTextFromImage(file: File): Promise<string> {
   const { createWorker } = await import('tesseract.js');
   const worker = await createWorker('eng');
-  const url = URL.createObjectURL(file);
-  const { data } = await worker.recognize(url);
+  // Pass File directly rather than a blob: URL (avoids cross-thread access issues)
+  const { data } = await worker.recognize(file);
   await worker.terminate();
-  URL.revokeObjectURL(url);
   return data.text;
 }

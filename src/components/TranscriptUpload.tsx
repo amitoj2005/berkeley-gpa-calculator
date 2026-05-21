@@ -58,10 +58,15 @@ interface PastedImage {
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
+function getAsStringAsync(item: DataTransferItem): Promise<string> {
+  return new Promise((resolve) => item.getAsString(resolve));
+}
+
 export default function TranscriptUpload({ onCoursesFound }: Props) {
   const [dragging, setDragging] = useState(false);
   const [fileJobs, setFileJobs] = useState<FileJob[]>([]);
   const [pastedImages, setPastedImages] = useState<PastedImage[]>([]);
+  const [textPasteMsg, setTextPasteMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const pasteZoneRef = useRef<HTMLDivElement>(null);
 
   // ── File handler ────────────────────────────────────────────────────────────
@@ -102,6 +107,26 @@ export default function TranscriptUpload({ onCoursesFound }: Props) {
   // ── Paste handler ───────────────────────────────────────────────────────────
   const handlePasteEvent = useCallback(async (e: ClipboardEvent) => {
     const items = Array.from(e.clipboardData?.items ?? []);
+
+    // Prefer text — direct copy from CalCentral page, no OCR needed
+    const textItem = items.find((it) => it.type === 'text/plain');
+    if (textItem) {
+      const raw = await getAsStringAsync(textItem);
+      if (raw.trim()) {
+        e.preventDefault();
+        let courses = parseGradesPage(raw);
+        if (!courses.length) courses = parseTranscript(raw);
+        if (!courses.length) courses = parseTranscriptFuzzy(raw);
+        if (courses.length > 0) {
+          setTextPasteMsg({ ok: true, text: `${courses.length} courses found from pasted text` });
+          onCoursesFound(courses);
+        } else {
+          setTextPasteMsg({ ok: false, text: 'No courses found in pasted text — try the PDF instead.' });
+        }
+        return;
+      }
+    }
+
     const imageItems = items.filter((it) => it.type.startsWith('image/'));
     if (!imageItems.length) return;
     e.preventDefault();
@@ -212,10 +237,10 @@ export default function TranscriptUpload({ onCoursesFound }: Props) {
         )}
       </div>
 
-      {/* ── Paste screenshot zone ── */}
+      {/* ── Paste zone ── */}
       <div>
         <p className="text-xs font-semibold uppercase tracking-wider text-zinc-500 mb-2">
-          Option 2 — Paste CalCentral grades screenshots
+          Option 2 — Paste from CalCentral
         </p>
 
         <div
@@ -224,12 +249,19 @@ export default function TranscriptUpload({ onCoursesFound }: Props) {
         >
           <div className="flex items-center gap-2 text-zinc-400">
             <kbd className="rounded bg-zinc-700 px-2 py-0.5 text-xs font-mono text-zinc-300">Ctrl+V</kbd>
-            <span className="text-sm">to paste a screenshot anywhere on this page</span>
+            <span className="text-sm">to paste anywhere on this page</span>
           </div>
           <p className="text-xs text-zinc-500">
-            Paste as many screenshots as you need — each term can be a separate image
+            Paste a screenshot <span className="text-zinc-400">or</span> select all text on the CalCentral grades page and paste directly — no OCR needed
           </p>
         </div>
+
+        {textPasteMsg && (
+          <div className={`mt-2 flex items-center gap-2 text-sm px-3 py-2 rounded-lg ${textPasteMsg.ok ? 'bg-green-900/30 text-green-400' : 'bg-red-900/30 text-red-400'}`}>
+            <span>{textPasteMsg.ok ? '✓' : '✕'}</span>
+            <span>{textPasteMsg.text}</span>
+          </div>
+        )}
 
         {/* Pasted image queue */}
         {pastedImages.length > 0 && (
@@ -280,20 +312,25 @@ export default function TranscriptUpload({ onCoursesFound }: Props) {
       {/* ── How to get transcript ── */}
       <div className="rounded-lg bg-zinc-900 p-4 text-xs text-zinc-400 space-y-3">
         <div>
-          <p className="font-semibold text-zinc-300 mb-1">For screenshots (grades page):</p>
+          <p className="font-semibold text-zinc-300 mb-1">Paste text from grades page <span className="text-green-400 font-normal">(most reliable)</span>:</p>
           <ol className="list-decimal list-inside space-y-0.5">
             <li>Go to <span className="text-zinc-200">calcentral.berkeley.edu</span> → My Academics → Grades</li>
-            <li>Screenshot each semester&apos;s grade table</li>
-            <li>Paste directly here with <kbd className="rounded bg-zinc-800 px-1 py-0.5 font-mono">Ctrl+V</kbd></li>
+            <li>Select all the text on the page <kbd className="rounded bg-zinc-800 px-1 py-0.5 font-mono">Ctrl+A</kbd> and copy <kbd className="rounded bg-zinc-800 px-1 py-0.5 font-mono">Ctrl+C</kbd></li>
+            <li>Paste here with <kbd className="rounded bg-zinc-800 px-1 py-0.5 font-mono">Ctrl+V</kbd> — works instantly, no OCR</li>
           </ol>
         </div>
         <div>
-          <p className="font-semibold text-zinc-300 mb-1">For the PDF (more accurate):</p>
+          <p className="font-semibold text-zinc-300 mb-1">Upload PDF <span className="text-blue-400 font-normal">(also reliable)</span>:</p>
           <ol className="list-decimal list-inside space-y-0.5">
             <li>Go to <span className="text-zinc-200">calcentral.berkeley.edu</span> → My Academics</li>
             <li>Click <span className="text-zinc-200">View Academic Summary</span></li>
-            <li>Click <span className="text-zinc-200">Print</span> (top right) → Save as PDF</li>
-            <li>Upload the PDF above</li>
+            <li>Click <span className="text-zinc-200">Print</span> (top right) → Save as PDF → upload above</li>
+          </ol>
+        </div>
+        <div>
+          <p className="font-semibold text-zinc-300 mb-1">Paste screenshot <span className="text-zinc-500 font-normal">(OCR — less reliable)</span>:</p>
+          <ol className="list-decimal list-inside space-y-0.5">
+            <li>Screenshot each semester&apos;s grade table and paste with <kbd className="rounded bg-zinc-800 px-1 py-0.5 font-mono">Ctrl+V</kbd></li>
           </ol>
         </div>
         <p className="text-zinc-500">Nothing leaves your browser — no server, no uploads.</p>
