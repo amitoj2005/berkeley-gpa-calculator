@@ -156,10 +156,38 @@ export default function TranscriptUpload({ onCoursesFound }: Props) {
   return (
     <div className="space-y-6">
 
+      {/* ── Paste zone ── */}
+      <div>
+        <p className="text-xs font-semibold uppercase tracking-wider text-zinc-500 mb-2">
+          Option 1 — Paste from CalCentral
+        </p>
+
+        <div
+          ref={pasteZoneRef}
+          className="flex flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-zinc-700 bg-zinc-900/40 p-6 text-center hover:border-zinc-500 transition-colors cursor-default"
+        >
+          <div className="flex items-center gap-2 text-zinc-400">
+            <kbd className="rounded bg-zinc-700 px-2 py-0.5 text-xs font-mono text-zinc-300">Ctrl+V</kbd>
+            <span className="text-sm">to paste anywhere on this page</span>
+          </div>
+          <p className="text-xs text-zinc-500">
+            Select all text on your CalCentral page and paste it here — works with My Academics and the Grades page
+          </p>
+        </div>
+
+        {textPasteMsg && (
+          <div className={`mt-2 flex items-center gap-2 text-sm px-3 py-2 rounded-lg ${textPasteMsg.ok ? 'bg-green-900/30 text-green-400' : 'bg-red-900/30 text-red-400'}`}>
+            <span>{textPasteMsg.ok ? '✓' : '✕'}</span>
+            <span className="flex-1">{textPasteMsg.text}</span>
+            <button onClick={() => setTextPasteMsg(null)} className="opacity-60 hover:opacity-100 ml-2 shrink-0">✕</button>
+          </div>
+        )}
+      </div>
+
       {/* ── PDF / file drop zone ── */}
       <div>
         <p className="text-xs font-semibold uppercase tracking-wider text-zinc-500 mb-2">
-          Option 1 — Upload transcript PDF
+          Option 2 — Upload transcript PDF
         </p>
         <div
           onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
@@ -203,83 +231,10 @@ export default function TranscriptUpload({ onCoursesFound }: Props) {
         )}
       </div>
 
-      {/* ── Paste zone ── */}
-      <div>
-        <p className="text-xs font-semibold uppercase tracking-wider text-zinc-500 mb-2">
-          Option 2 — Paste from CalCentral
-        </p>
-
-        <div
-          ref={pasteZoneRef}
-          className="flex flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-zinc-700 bg-zinc-900/40 p-6 text-center hover:border-zinc-500 transition-colors cursor-default"
-        >
-          <div className="flex items-center gap-2 text-zinc-400">
-            <kbd className="rounded bg-zinc-700 px-2 py-0.5 text-xs font-mono text-zinc-300">Ctrl+V</kbd>
-            <span className="text-sm">to paste anywhere on this page</span>
-          </div>
-          <p className="text-xs text-zinc-500">
-            Select all text on your CalCentral page and paste it here — works with My Academics and the Grades page
-          </p>
-        </div>
-
-        {textPasteMsg && (
-          <div className={`mt-2 flex items-center gap-2 text-sm px-3 py-2 rounded-lg ${textPasteMsg.ok ? 'bg-green-900/30 text-green-400' : 'bg-red-900/30 text-red-400'}`}>
-            <span>{textPasteMsg.ok ? '✓' : '✕'}</span>
-            <span className="flex-1">{textPasteMsg.text}</span>
-            <button onClick={() => setTextPasteMsg(null)} className="opacity-60 hover:opacity-100 ml-2 shrink-0">✕</button>
-          </div>
-        )}
-
-        {/* Pasted image queue */}
-        {pastedImages.length > 0 && (
-          <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
-            {pastedImages.map((img) => (
-              <div
-                key={img.id}
-                className="relative flex gap-3 rounded-lg border border-zinc-700 bg-zinc-800 p-3"
-              >
-                {/* Thumbnail */}
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={img.previewUrl}
-                  alt="pasted screenshot"
-                  className="h-16 w-24 flex-shrink-0 rounded object-cover object-top border border-zinc-700"
-                />
-                <div className="flex flex-col justify-center gap-1 min-w-0">
-                  <div className="flex items-center gap-1.5 text-sm">
-                    {statusIcon(img.status)}
-                    <span className={
-                      img.status === 'done' ? 'text-green-400' :
-                      img.status === 'error' ? 'text-red-400' :
-                      'text-blue-400'
-                    }>
-                      {img.status === 'queued' && 'Queued…'}
-                      {img.status === 'processing' && 'Reading with OCR…'}
-                      {img.status === 'done' && `${img.courses} course${img.courses !== 1 ? 's' : ''} found`}
-                      {img.status === 'error' && 'Failed'}
-                    </span>
-                  </div>
-                  {img.status === 'error' && img.error && (
-                    <p className="text-xs text-red-400 leading-tight">{img.error}</p>
-                  )}
-                </div>
-                <button
-                  onClick={() => clearPasted(img.id)}
-                  className="absolute right-2 top-2 text-zinc-600 hover:text-zinc-300 text-xs"
-                  title="Remove"
-                >
-                  ✕
-                </button>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-
       {/* ── How to get transcript ── */}
       <div className="rounded-lg bg-zinc-900 p-4 text-xs text-zinc-400 space-y-3">
         <div>
-          <p className="font-semibold text-zinc-300 mb-1">Option 2 — Paste from My Academics page <span className="text-green-400 font-normal">(easiest)</span>:</p>
+          <p className="font-semibold text-zinc-300 mb-1">Option 1 — Paste from My Academics page <span className="text-green-400 font-normal">(easiest)</span>:</p>
           <ol className="list-decimal list-inside space-y-0.5">
             <li>Go to <span className="text-zinc-200">calcentral.berkeley.edu</span> → My Academics</li>
             <li>Scroll down and click <span className="text-zinc-200 font-medium">Show More</span> at the bottom of the Semesters section to expand all past terms</li>
@@ -288,7 +243,7 @@ export default function TranscriptUpload({ onCoursesFound }: Props) {
           </ol>
         </div>
         <div>
-          <p className="font-semibold text-zinc-300 mb-1">Option 1 — Upload PDF:</p>
+          <p className="font-semibold text-zinc-300 mb-1">Option 2 — Upload PDF:</p>
           <ol className="list-decimal list-inside space-y-0.5">
             <li>Go to <span className="text-zinc-200">calcentral.berkeley.edu</span> → My Academics</li>
             <li>Click <span className="text-zinc-200">View Academic Summary</span></li>
