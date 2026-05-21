@@ -90,6 +90,7 @@ const Insights = dynamic(() => import('@/components/Insights'), { ssr: false });
 const GPATarget = dynamic(() => import('@/components/GPATarget'), { ssr: false });
 const RetakeSimulator = dynamic(() => import('@/components/RetakeSimulator'), { ssr: false });
 const CurrentTermSimulator = dynamic(() => import('@/components/CurrentTermSimulator'), { ssr: false });
+const UpcomingCoursesSimulator = dynamic(() => import('@/components/UpcomingCoursesSimulator'), { ssr: false });
 
 type Tab = 'upload' | 'courses' | 'insights' | 'whatif';
 
@@ -229,6 +230,7 @@ export default function Home() {
 
           {tab === 'whatif' && (
             <div className="space-y-6">
+              <UpcomingCoursesSimulator courses={courses} gpaData={gpaData} />
               <CurrentTermSimulator gpaData={gpaData} />
               <WhatIfSimulator
                 hypothetical={hypothetical}
