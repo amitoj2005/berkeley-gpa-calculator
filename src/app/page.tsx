@@ -231,7 +231,7 @@ export default function Home() {
           {tab === 'whatif' && (
             <div className="space-y-6">
               <UpcomingCoursesSimulator courses={courses} gpaData={gpaData} />
-              <CurrentTermSimulator gpaData={gpaData} />
+              <CurrentTermSimulator gpaData={gpaData} courses={courses} />
               <WhatIfSimulator
                 hypothetical={hypothetical}
                 onChange={setHypothetical}

@@ -41,12 +41,27 @@ function approxLetter(gpa: number): string {
 }
 
 export default function UpcomingCoursesSimulator({ courses, gpaData }: Props) {
-  const fromTranscript = useMemo(() =>
-    courses.filter((c) => {
+  // Only show IP courses from terms where every course is ungraded (= future semesters).
+  // Current-semester courses (mixed graded + ungraded) go to CurrentTermSimulator instead.
+  const fromTranscript = useMemo(() => {
+    const isEnrolled = (c: Course) => {
       const g = (c.grade as string).toUpperCase();
       return g === 'IP' || g === 'RD' || g === 'GRD';
-    }),
-  [courses]);
+    };
+    const byTerm = new Map<string, Course[]>();
+    for (const c of courses) {
+      if (!byTerm.has(c.term)) byTerm.set(c.term, []);
+      byTerm.get(c.term)!.push(c);
+    }
+    const result: Course[] = [];
+    for (const termCourses of byTerm.values()) {
+      const ip = termCourses.filter(isEnrolled);
+      if (ip.length === 0) continue;
+      const allEnrolled = termCourses.every(isEnrolled);
+      if (allEnrolled) result.push(...ip);
+    }
+    return result;
+  }, [courses]);
 
   const [entries, setEntries] = useState<Entry[]>(() =>
     fromTranscript.map((c) => ({

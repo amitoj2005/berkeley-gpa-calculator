@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useMemo } from 'react';
-import type { GPAData } from '@/lib/types';
+import type { Course, GPAData } from '@/lib/types';
 import { GRADE_POINTS, getGradePoints } from '@/lib/gpa';
 
 const GRADE_OPTIONS = Object.keys(GRADE_POINTS);
@@ -15,13 +15,44 @@ interface TermCourse {
 
 let _id = 0;
 function newId() { return String(++_id); }
+function newCourse(): TermCourse { return { id: newId(), code: '', units: 3, grade: 'B' }; }
 
-function newCourse(): TermCourse {
-  return { id: newId(), code: '', units: 3, grade: 'B' };
+function isEnrolled(c: Course) {
+  const g = (c.grade as string).toUpperCase();
+  return g === 'IP' || g === 'RD';
 }
 
-export default function CurrentTermSimulator({ gpaData }: { gpaData: GPAData }) {
-  const [courses, setCourses] = useState<TermCourse[]>([newCourse()]);
+// IP courses in terms that also have graded courses = current semester in progress
+function detectCurrentSemester(allCourses: Course[]): Course[] {
+  const byTerm = new Map<string, Course[]>();
+  for (const c of allCourses) {
+    if (!byTerm.has(c.term)) byTerm.set(c.term, []);
+    byTerm.get(c.term)!.push(c);
+  }
+  const result: Course[] = [];
+  for (const termCourses of byTerm.values()) {
+    const ip = termCourses.filter(isEnrolled);
+    if (ip.length === 0) continue;
+    const hasGraded = termCourses.some((c) => !isEnrolled(c));
+    if (hasGraded) result.push(...ip);
+  }
+  return result;
+}
+
+export default function CurrentTermSimulator({
+  gpaData,
+  courses: allCourses = [],
+}: {
+  gpaData: GPAData;
+  courses?: Course[];
+}) {
+  const preloaded = useMemo(() => detectCurrentSemester(allCourses), [allCourses]);
+
+  const [courses, setCourses] = useState<TermCourse[]>(() =>
+    preloaded.length > 0
+      ? preloaded.map((c) => ({ id: newId(), code: c.code, units: c.units, grade: 'B' }))
+      : [newCourse()]
+  );
 
   const add = () => setCourses((p) => [...p, newCourse()]);
   const remove = (id: string) => setCourses((p) => p.filter((c) => c.id !== id));
@@ -43,7 +74,9 @@ export default function CurrentTermSimulator({ gpaData }: { gpaData: GPAData }) 
         <div>
           <h3 className="text-sm font-semibold text-zinc-200">Current Semester Simulator</h3>
           <p className="text-xs text-zinc-500 mt-0.5">
-            Enter courses you&apos;re enrolled in now and set expected grades to preview your end-of-semester GPA.
+            {preloaded.length > 0
+              ? `${preloaded.length} in-progress course${preloaded.length !== 1 ? 's' : ''} detected from your transcript — set expected grades to preview your GPA.`
+              : 'Enter courses you\'re enrolled in now and set expected grades to preview your end-of-semester GPA.'}
           </p>
         </div>
         <button
