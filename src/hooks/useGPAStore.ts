@@ -78,6 +78,12 @@ export function useGPAStore() {
     setMajorIds(new Set());
   }, []);
 
+  const loadShare = useCallback((newCourses: Course[], newMajorIds: Set<string>) => {
+    setCourses(newCourses);
+    setMajorIds(newMajorIds);
+    setHypothetical([]);
+  }, []);
+
   const gpaData = calculateGPA(courses);
   const majorCourses = courses.filter((c) => majorIds.has(c.id));
   const majorGPAData = calculateGPA(majorCourses);
@@ -96,6 +102,7 @@ export function useGPAStore() {
     replaceCourses,
     removeCourse,
     clearAll,
+    loadShare,
     gpaData,
     projected,
     loaded,

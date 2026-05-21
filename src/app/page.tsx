@@ -1,8 +1,9 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import dynamic from 'next/dynamic';
 import { useGPAStore } from '@/hooks/useGPAStore';
+import { encodeShareUrl, decodeShareHash } from '@/lib/share';
 import type { Course } from '@/lib/types';
 
 const GRADE_SCALE: { grade: string; points: number; note?: string }[] = [
@@ -98,8 +99,36 @@ export default function Home() {
   const {
     courses, gpaData, hypothetical, setHypothetical,
     majorIds, toggleMajor, majorGPAData,
-    addCourses, replaceCourses, removeCourse, clearAll, projected, loaded,
+    addCourses, replaceCourses, removeCourse, clearAll, loadShare, projected, loaded,
   } = useGPAStore();
+
+  const [shareToast, setShareToast] = useState<'copied' | 'loaded' | null>(null);
+
+  // Load from shared URL hash once localStorage is ready
+  useEffect(() => {
+    if (!loaded) return;
+    const hash = window.location.hash;
+    if (!hash.startsWith('#share=')) return;
+    const result = decodeShareHash(hash);
+    if (result) {
+      const majorIdSet = new Set(
+        result.majorIndices.map((i) => result.courses[i]?.id).filter(Boolean) as string[]
+      );
+      loadShare(result.courses, majorIdSet);
+      history.replaceState(null, '', window.location.pathname);
+      setTab('courses');
+      setShareToast('loaded');
+      setTimeout(() => setShareToast(null), 4000);
+    }
+  }, [loaded]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleShare = useCallback(() => {
+    const url = encodeShareUrl(courses, majorIds);
+    navigator.clipboard.writeText(url).then(() => {
+      setShareToast('copied');
+      setTimeout(() => setShareToast(null), 2500);
+    });
+  }, [courses, majorIds]);
 
   function handleExportCSV() {
     const header = 'Term,Code,Title,Units,Grade,Grade Points,Quality Points,Major\n';
@@ -201,12 +230,24 @@ export default function Home() {
               {hasCourses && (
                 <div className="pt-2 border-t border-zinc-800 flex items-center justify-between">
                   <p className="text-xs text-zinc-500">{courses.length} courses currently loaded</p>
-                  <button
-                    onClick={() => { if (confirm('Clear all courses?')) clearAll(); }}
-                    className="text-xs text-red-500 hover:text-red-400 underline"
-                  >
-                    Clear all data
-                  </button>
+                  <div className="flex items-center gap-4">
+                    <button
+                      onClick={handleShare}
+                      className="text-xs text-blue-400 hover:text-blue-300 flex items-center gap-1"
+                    >
+                      <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                          d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
+                      </svg>
+                      Share
+                    </button>
+                    <button
+                      onClick={() => { if (confirm('Clear all courses?')) clearAll(); }}
+                      className="text-xs text-red-500 hover:text-red-400 underline"
+                    >
+                      Clear all data
+                    </button>
+                  </div>
                 </div>
               )}
             </div>
@@ -252,6 +293,23 @@ export default function Home() {
           Built for Cal students · GPA calculated per Berkeley&apos;s 4.0 scale · A+ = 4.0 · P/NP excluded
         </p>
       </div>
+
+      {/* Toast */}
+      {shareToast && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 rounded-xl bg-zinc-800 border border-zinc-700 shadow-2xl px-5 py-3 flex items-center gap-3 text-sm animate-in fade-in slide-in-from-bottom-2">
+          {shareToast === 'copied' ? (
+            <>
+              <span className="text-green-400">✓</span>
+              <span className="text-zinc-200">Link copied to clipboard</span>
+            </>
+          ) : (
+            <>
+              <span className="text-blue-400">✓</span>
+              <span className="text-zinc-200">Loaded {courses.length} courses from shared link</span>
+            </>
+          )}
+        </div>
+      )}
 
       {/* Import mode modal */}
       {showImportPrompt && (
