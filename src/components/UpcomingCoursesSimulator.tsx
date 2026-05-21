@@ -99,10 +99,10 @@ export default function UpcomingCoursesSimulator({ courses, gpaData }: Props) {
     setEntries((prev) => prev.filter((e) => e.id !== id));
 
   const delta = projected.gpa - gpaData.cumulativeGPA;
-  const hasLetterEntries = entries.some((e) => e.decision === 'letter' && e.units > 0);
 
   return (
     <div className="rounded-xl bg-zinc-800/60 p-4 space-y-4">
+      {/* Header */}
       <div className="flex items-start justify-between gap-4">
         <div>
           <h3 className="text-sm font-semibold text-zinc-200">Upcoming Courses Simulator</h3>
@@ -119,12 +119,31 @@ export default function UpcomingCoursesSimulator({ courses, gpaData }: Props) {
         </button>
       </div>
 
+      {/* Projected GPA summary — always visible at top */}
+      <div className="rounded-lg bg-zinc-900 px-4 py-3 grid grid-cols-3 gap-4">
+        <div>
+          <p className="text-xs text-zinc-400">Current GPA</p>
+          <p className="text-xl font-bold text-zinc-400">{gpaData.cumulativeGPA.toFixed(3)}</p>
+        </div>
+        <div>
+          <p className="text-xs text-zinc-400">Projected GPA</p>
+          <p className="text-xl font-bold text-white">{projected.gpa.toFixed(3)}</p>
+          <p className="text-xs text-zinc-500">{projected.units} units</p>
+        </div>
+        <div className="text-right">
+          <p className="text-xs text-zinc-400">Change</p>
+          <p className={`text-xl font-bold ${delta > 0.0005 ? 'text-green-400' : delta < -0.0005 ? 'text-red-400' : 'text-zinc-400'}`}>
+            {delta > 0 ? '+' : ''}{delta.toFixed(3)}
+          </p>
+        </div>
+      </div>
+
       {entries.length === 0 ? (
         <p className="text-xs text-zinc-600 text-center py-4">
           No enrolled courses detected. Add courses manually or upload a transcript that includes IP-enrolled courses.
         </p>
       ) : (
-        <div className="space-y-3">
+        <div className="space-y-3 max-h-[480px] overflow-y-auto pr-1">
           {entries.map((e) => {
             const gp = GRADE_POINTS[e.expectedGrade] ?? NaN;
             const courseDelta =
@@ -265,26 +284,6 @@ export default function UpcomingCoursesSimulator({ courses, gpaData }: Props) {
         Grades above this raise your GPA; grades below lower it.
         Major requirements often can&apos;t be switched to P/NP — check with your advisor.
       </p>
-
-      {hasLetterEntries && (
-        <div className="rounded-lg bg-zinc-900 px-4 py-3 grid grid-cols-3 gap-4">
-          <div>
-            <p className="text-xs text-zinc-400">Current GPA</p>
-            <p className="text-xl font-bold text-zinc-400">{gpaData.cumulativeGPA.toFixed(3)}</p>
-          </div>
-          <div>
-            <p className="text-xs text-zinc-400">Projected GPA</p>
-            <p className="text-xl font-bold text-white">{projected.gpa.toFixed(3)}</p>
-            <p className="text-xs text-zinc-500">{projected.units} units</p>
-          </div>
-          <div className="text-right">
-            <p className="text-xs text-zinc-400">Change</p>
-            <p className={`text-xl font-bold ${delta > 0.0005 ? 'text-green-400' : delta < -0.0005 ? 'text-red-400' : 'text-zinc-400'}`}>
-              {delta > 0 ? '+' : ''}{delta.toFixed(3)}
-            </p>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
