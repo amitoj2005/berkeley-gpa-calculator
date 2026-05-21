@@ -177,6 +177,86 @@ export function parseGradesPage(text: string): Course[] {
 }
 
 /**
+ * Parser for the CalCentral "My Academics" landing page (copy-paste of the whole page).
+ *
+ * Format (each course spans multiple lines, tab-separated units/grade):
+ *   Fall 2025
+ *   INDENG 150\t
+ *   Production Systems Analysis
+ *   3.0\tA
+ *
+ * Courses with "GRD" (enrolled but no grade yet) are skipped.
+ */
+export function parseMyAcademicsPage(text: string): Course[] {
+  // Require tab-separated units/grade pattern — distinctive signature of this format
+  if (!/\d+\.?\d*\t[A-Z+\-]+/.test(text)) return [];
+
+  const lines = text.split('\n').map((l) => l.trim()).filter(Boolean);
+  const courses: Course[] = [];
+  let currentTerm = 'Unknown';
+
+  const TERM_RE = /^(Spring|Summer|Fall|Winter)\s+(20\d{2})\s*$/i;
+  const CODE_RE = /^([A-Z][A-Z&]{1,12}\s+[A-Z]?\d{1,3}[A-Z]{0,3})(?:\s*\([^)]*\))?\t?$/;
+  const UNITS_GRADE_RE = /^(\d+\.?\d*)\t(\S+)\s*$/;
+  const VALID_GRADES = new Set([
+    'A+','A','A-','B+','B','B-','C+','C','C-','D+','D','D-','F','P','NP','W','I','S','U',
+  ]);
+  const SCHED_TYPE_RE = /^(LEC|DIS|LAB|SEM|REC|STO|FLD|VOL|INT|SUP|IND|GRP|CLN|FLT|PRA|WBD|WEB|TUT)$/i;
+  const TIME_SLOT_RE = /^(M|Tu|W|Th|F|Sa|Su)+\s+\d{1,2}:\d{2}[AP]-\d{1,2}:\d{2}[AP]/i;
+  const SKIP_RE = /^(textbooks|my enrolled|my waitlisted|show less|show more|degree progress|transcript|enrollment|advising|teaching|class enrollment|schedule planner|calcentral|skip to|uc berkeley|usage policy|about|support|view deadlines|period\t|enrollment for|about summer|enrollment center|how to|learn more|consult your|for an appt|for accessibility)/i;
+
+  let i = 0;
+  while (i < lines.length) {
+    const line = lines[i];
+
+    const termMatch = TERM_RE.exec(line);
+    if (termMatch) {
+      currentTerm = `${termMatch[1]} ${termMatch[2]}`;
+      i++; continue;
+    }
+
+    if (SKIP_RE.test(line)) { i++; continue; }
+
+    const codeMatch = CODE_RE.exec(line);
+    if (codeMatch) {
+      const code = codeMatch[1].trim();
+      i++;
+
+      // First non-schedule, non-units line after the code is the title
+      let title = code;
+      while (i < lines.length) {
+        const l = lines[i];
+        if (SCHED_TYPE_RE.test(l) || TIME_SLOT_RE.test(l) || SKIP_RE.test(l)) { i++; continue; }
+        if (UNITS_GRADE_RE.test(l)) break;
+        title = l.replace(/[……]$/, '').trim();
+        i++; break;
+      }
+
+      // Skip schedule lines then grab units + grade
+      while (i < lines.length) {
+        const l = lines[i];
+        if (SCHED_TYPE_RE.test(l) || TIME_SLOT_RE.test(l)) { i++; continue; }
+        const m = UNITS_GRADE_RE.exec(l);
+        if (m) {
+          const units = parseFloat(m[1]);
+          const grade = m[2].toUpperCase();
+          i++;
+          if (!isNaN(units) && units > 0 && VALID_GRADES.has(grade)) {
+            courses.push(buildCourse(nextId(), currentTerm, code, title, units, grade));
+          }
+        }
+        break;
+      }
+      continue;
+    }
+
+    i++;
+  }
+
+  return courses;
+}
+
+/**
  * Fallback line-by-line parser for less structured text (e.g. from OCR).
  * More permissive — tries harder to find course-like patterns.
  */

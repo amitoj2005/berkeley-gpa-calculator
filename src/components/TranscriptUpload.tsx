@@ -1,8 +1,8 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { extractTextFromPDF, extractTextFromImage } from '@/lib/pdfExtract';
-import { parseTranscript, parseTranscriptFuzzy, parseGradesPage } from '@/lib/parser';
+import { extractTextFromPDF } from '@/lib/pdfExtract';
+import { parseTranscript, parseTranscriptFuzzy, parseGradesPage, parseMyAcademicsPage } from '@/lib/parser';
 import type { Course } from '@/lib/types';
 
 interface Props {
@@ -108,60 +108,26 @@ export default function TranscriptUpload({ onCoursesFound }: Props) {
   const handlePasteEvent = useCallback(async (e: ClipboardEvent) => {
     const items = Array.from(e.clipboardData?.items ?? []);
 
-    // Prefer text — direct copy from CalCentral page, no OCR needed
+    // Handle text — direct copy from CalCentral page, no OCR needed
     const textItem = items.find((it) => it.type === 'text/plain');
     if (textItem) {
       const raw = await getAsStringAsync(textItem);
       if (raw.trim()) {
         e.preventDefault();
-        let courses = parseGradesPage(raw);
+        let courses = parseMyAcademicsPage(raw);
+        if (!courses.length) courses = parseGradesPage(raw);
         if (!courses.length) courses = parseTranscript(raw);
         if (!courses.length) courses = parseTranscriptFuzzy(raw);
         if (courses.length > 0) {
-          setTextPasteMsg({ ok: true, text: `${courses.length} courses found from pasted text` });
+          setTextPasteMsg({ ok: true, text: `${courses.length} courses found` });
           onCoursesFound(courses);
         } else {
-          setTextPasteMsg({ ok: false, text: 'No courses found in pasted text — try the PDF instead.' });
+          setTextPasteMsg({ ok: false, text: 'No courses found — make sure to copy from the My Academics page or use the PDF.' });
         }
         return;
       }
     }
-
-    const imageItems = items.filter((it) => it.type.startsWith('image/'));
-    if (!imageItems.length) return;
-    e.preventDefault();
-
-    const blobs = imageItems.map((it) => it.getAsFile()).filter(Boolean) as File[];
-    const newEntries: PastedImage[] = blobs.map((blob) => ({
-      id: mkId(),
-      previewUrl: URL.createObjectURL(blob),
-      blob,
-      status: 'queued',
-      courses: 0,
-    }));
-
-    setPastedImages((prev) => [...prev, ...newEntries]);
-
-    for (const entry of newEntries) {
-      setPastedImages((prev) => prev.map((p) =>
-        p.id === entry.id ? { ...p, status: 'processing' } : p
-      ));
-      try {
-        const { courses, msg } = await processFile(
-          new File([entry.blob], 'screenshot.png', { type: entry.blob.type })
-        );
-        setPastedImages((prev) => prev.map((p) =>
-          p.id === entry.id ? { ...p, status: 'done', courses: courses.length } : p
-        ));
-        onCoursesFound(courses);
-      } catch (err) {
-        setPastedImages((prev) => prev.map((p) =>
-          p.id === entry.id
-            ? { ...p, status: 'error', error: err instanceof Error ? err.message : String(err) }
-            : p
-        ));
-      }
-    }
+    // Image paste not supported (OCR unreliable) — ignore silently
   }, [onCoursesFound]);
 
   // Listen for paste globally while mounted
@@ -252,14 +218,15 @@ export default function TranscriptUpload({ onCoursesFound }: Props) {
             <span className="text-sm">to paste anywhere on this page</span>
           </div>
           <p className="text-xs text-zinc-500">
-            Paste a screenshot <span className="text-zinc-400">or</span> select all text on the CalCentral grades page and paste directly — no OCR needed
+            Select all text on your CalCentral page and paste it here — works with My Academics and the Grades page
           </p>
         </div>
 
         {textPasteMsg && (
           <div className={`mt-2 flex items-center gap-2 text-sm px-3 py-2 rounded-lg ${textPasteMsg.ok ? 'bg-green-900/30 text-green-400' : 'bg-red-900/30 text-red-400'}`}>
             <span>{textPasteMsg.ok ? '✓' : '✕'}</span>
-            <span>{textPasteMsg.text}</span>
+            <span className="flex-1">{textPasteMsg.text}</span>
+            <button onClick={() => setTextPasteMsg(null)} className="opacity-60 hover:opacity-100 ml-2 shrink-0">✕</button>
           </div>
         )}
 
@@ -312,25 +279,19 @@ export default function TranscriptUpload({ onCoursesFound }: Props) {
       {/* ── How to get transcript ── */}
       <div className="rounded-lg bg-zinc-900 p-4 text-xs text-zinc-400 space-y-3">
         <div>
-          <p className="font-semibold text-zinc-300 mb-1">Paste text from grades page <span className="text-green-400 font-normal">(most reliable)</span>:</p>
+          <p className="font-semibold text-zinc-300 mb-1">Option 2 — Paste from My Academics page <span className="text-green-400 font-normal">(easiest)</span>:</p>
           <ol className="list-decimal list-inside space-y-0.5">
-            <li>Go to <span className="text-zinc-200">calcentral.berkeley.edu</span> → My Academics → Grades</li>
-            <li>Select all the text on the page <kbd className="rounded bg-zinc-800 px-1 py-0.5 font-mono">Ctrl+A</kbd> and copy <kbd className="rounded bg-zinc-800 px-1 py-0.5 font-mono">Ctrl+C</kbd></li>
-            <li>Paste here with <kbd className="rounded bg-zinc-800 px-1 py-0.5 font-mono">Ctrl+V</kbd> — works instantly, no OCR</li>
+            <li>Go to <span className="text-zinc-200">calcentral.berkeley.edu</span> → My Academics</li>
+            <li>Press <kbd className="rounded bg-zinc-800 px-1 py-0.5 font-mono">Ctrl+A</kbd> to select all, then <kbd className="rounded bg-zinc-800 px-1 py-0.5 font-mono">Ctrl+C</kbd> to copy</li>
+            <li>Come back here and press <kbd className="rounded bg-zinc-800 px-1 py-0.5 font-mono">Ctrl+V</kbd></li>
           </ol>
         </div>
         <div>
-          <p className="font-semibold text-zinc-300 mb-1">Upload PDF <span className="text-blue-400 font-normal">(also reliable)</span>:</p>
+          <p className="font-semibold text-zinc-300 mb-1">Option 1 — Upload PDF:</p>
           <ol className="list-decimal list-inside space-y-0.5">
             <li>Go to <span className="text-zinc-200">calcentral.berkeley.edu</span> → My Academics</li>
             <li>Click <span className="text-zinc-200">View Academic Summary</span></li>
             <li>Click <span className="text-zinc-200">Print</span> (top right) → Save as PDF → upload above</li>
-          </ol>
-        </div>
-        <div>
-          <p className="font-semibold text-zinc-300 mb-1">Paste screenshot <span className="text-zinc-500 font-normal">(OCR — less reliable)</span>:</p>
-          <ol className="list-decimal list-inside space-y-0.5">
-            <li>Screenshot each semester&apos;s grade table and paste with <kbd className="rounded bg-zinc-800 px-1 py-0.5 font-mono">Ctrl+V</kbd></li>
           </ol>
         </div>
         <p className="text-zinc-500">Nothing leaves your browser — no server, no uploads.</p>
